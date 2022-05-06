@@ -13,6 +13,7 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
+import android.view.LayoutInflater
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
@@ -126,8 +127,8 @@ class MainActivity : AppCompatActivity() {
                 if (task.isSuccessful) {
                     // Sign in success, update UI with the signed-in user's information
                     Log.d(TAG, "signInWithEmail:success")
-                    Toast.makeText(baseContext, "Authentication succeed.",
-                        Toast.LENGTH_SHORT).show()
+//                    Toast.makeText(baseContext, "Authentication succeed.",
+//                        Toast.LENGTH_SHORT).show()
                     val user = auth.currentUser
 //                    updateUI(user)
                 } else {
@@ -201,8 +202,30 @@ class MainActivity : AppCompatActivity() {
         if (savedUri != null) {
             storageReference.putFile(savedUri).addOnSuccessListener {
 
-                Toast.makeText(this, "Upload succeed", Toast.LENGTH_SHORT).show()
+//                Toast.makeText(this, "Upload succeed", Toast.LENGTH_SHORT).show()
                 if (progressDialog.isShowing) progressDialog.dismiss()
+
+                myRef.addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(dataSnapshot: DataSnapshot) {
+
+                        if (dataSnapshot != null){
+                            val value = dataSnapshot.getValue()
+                            System.out.print(value.toString())
+//                            Log.d(TAG, "Value is: ${value.toString()}"
+                            val res = value.toString()
+                            val end = res.length
+                            Log.d(TAG, "$end")
+                            val s = res.substring(8, end - 1)
+                            Toast.makeText(this@MainActivity, "$s", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+
+                    override fun onCancelled(error: DatabaseError) {
+                        // Failed to read value
+                        Log.w(TAG, "Failed to read value.", error.toException())
+                    }
+                })
+
 
             }.addOnFailureListener {
 
@@ -211,22 +234,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        myRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(dataSnapshot: DataSnapshot) {
-                // This method is called once with the initial value and again
-                // whenever data at this location is updated.
-                val value = dataSnapshot.getValue()
-//                System.out.print(value.toString())
-//                Log.d(TAG, "Value is: ${value.toString()}")
-//                Toast.makeText(this, "${value.toString()}", Toast.LENGTH_SHORT).show()
 
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                // Failed to read value
-                Log.w(TAG, "Failed to read value.", error.toException())
-            }
-        })
 
 
     }

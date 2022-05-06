@@ -1,6 +1,7 @@
 package com.example.cameraxapp
 
-
+import androidx.camera.extensions.ExtensionMode
+import androidx.camera.extensions.ExtensionsManager
 import android.Manifest
 import android.app.ProgressDialog
 import android.content.ContentValues
@@ -25,6 +26,12 @@ import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.ktx.auth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.ktx.database
+import com.google.firebase.database.ktx.getValue
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.functions.ktx.functions
@@ -37,6 +44,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.collections.HashMap
 
 typealias LumaListener = (luma: Double) -> Unit
 
@@ -75,6 +83,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var functions: FirebaseFunctions
     // ...
 
+    private lateinit var database: DatabaseReference
+// ...
 
 
 
@@ -83,7 +93,6 @@ class MainActivity : AppCompatActivity() {
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
         auth = Firebase.auth
-
         // Request camera permissions
         if (allPermissionsGranted()) {
             startCamera()
@@ -94,9 +103,10 @@ class MainActivity : AppCompatActivity() {
 
         // Set up the listeners for take photo and video capture buttons
         viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
-        viewBinding.videoCaptureButton.setOnClickListener { captureVideo() }
+//        viewBinding.videoCaptureButton.setOnClickListener { captureVideo() }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
+
     }
 
 
@@ -175,6 +185,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun uploadImage(savedUri: Uri?) {
+        val databases = Firebase.database
+        val myRef = databases.getReference().child("res")
 
         val progressDialog = ProgressDialog(this)
         progressDialog.setMessage("Uploading the file...")
@@ -194,83 +206,30 @@ class MainActivity : AppCompatActivity() {
 
             }.addOnFailureListener {
 
-                Toast.makeText(this, "fuck", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Upload failed", Toast.LENGTH_SHORT).show()
 
             }
         }
-    }
 
-    private fun analyImage(savedUri: Uri?){
+        myRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                // This method is called once with the initial value and again
+                // whenever data at this location is updated.
+                val value = dataSnapshot.getValue()
+//                System.out.print(value.toString())
+//                Log.d(TAG, "Value is: ${value.toString()}")
+//                Toast.makeText(this, "${value.toString()}", Toast.LENGTH_SHORT).show()
 
-        // create the bitmap of image
-        var bitmap: Bitmap = MediaStore.Images.Media.getBitmap(contentResolver, savedUri)
-        // Convert bitmap to base64 encoded string
-        val byteArrayOutputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream)
-        val imageBytes: ByteArray = byteArrayOutputStream.toByteArray()
-        val base64encoded = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
-
-        // Create json request to cloud vision
-        val request = JsonObject()
-        // Add image to request
-        val image = JsonObject()
-        image.add("content", JsonPrimitive(base64encoded))
-        request.add("image", image)
-        //Add features to the request
-        val feature = JsonObject()
-        feature.add("type", JsonPrimitive("DOCUMENT_TEXT_DETECTION"))
-        // Alternatively, for DOCUMENT_TEXT_DETECTION:
-        // feature.add("type", JsonPrimitive("DOCUMENT_TEXT_DETECTION"))
-        val features = JsonArray()
-        features.add(feature)
-        request.add("features", features)
-        val imageContext = JsonObject()
-        val languageHints = JsonArray()
-        languageHints.add("en")
-        imageContext.add("languageHints", languageHints)
-        request.add("imageContext", imageContext)
-//        print(request)
-        annotateImage(request.toString())
-            .addOnCompleteListener { task ->
-                if (!task.isSuccessful) {
-                    // Task failed with an exception
-                    // ...
-                    val e = task.exception
-                    if (e is FirebaseFunctionsException) {
-                        val code = e.code
-                        val details = e.details
-                        println(code)
-                        println(details)
-                    }
-                    println(e)
-                } else {
-                    // Task completed successfully
-                    // ...
-
-                    val annotation = task.result!!.asJsonArray[0].asJsonObject["fullTextAnnotation"].asJsonObject
-//                    val annotation = task.result
-//                    println(task)
-//                    System.out.format("%nComplete annotation:")
-                    System.out.format("%n%s", annotation["text"].asString)
-                }
             }
 
-    }
-
-    private fun annotateImage(requestJson: String): Task<JsonElement> {
-        return functions
-            .getHttpsCallable("annotateImage")
-            .call(requestJson)
-            .continueWith { task ->
-                // This continuation runs on either success or failure, but if the task
-                // has failed then result will throw an Exception which will be
-                // propagated down.
-                val result = task.result?.data
-                JsonParser.parseString(Gson().toJson(result))
+            override fun onCancelled(error: DatabaseError) {
+                // Failed to read value
+                Log.w(TAG, "Failed to read value.", error.toException())
             }
-    }
+        })
 
-    private fun captureVideo() {}
+
+    }
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
